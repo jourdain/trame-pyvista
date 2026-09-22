@@ -42,7 +42,7 @@ def _make_handler(_mode: str):
     return _handler
 
 
-for _backend in ('trame', 'server', 'client', 'html'):
+for _backend in ('trame', 'server', 'client', 'html', 'wasm'):
     register_jupyter_backend(_backend, _make_handler(_backend), override=True)
 del _backend
 

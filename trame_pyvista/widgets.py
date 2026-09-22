@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-from typing import override
 import weakref
 
 from trame.app import get_server as trame_get_server
@@ -347,7 +346,6 @@ try:
             """Forward to throttled update."""
             self.update_throttle()
 
-        @override
         def export_html(self):
             """Export scene to HTML as StringIO buffer."""
             return vtklocal.LocalView.export_html(self)

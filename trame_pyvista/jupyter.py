@@ -207,6 +207,13 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
     else:
         vuetify3_widgets.initialize(server)
 
+    try:
+        from trame.widgets import vtklocal as vtklocal_widgets
+    except ImportError:
+        pass
+    else:
+        vtklocal_widgets.initialize(server)
+
     def on_ready(**_):
         logger.debug(f'Server ready: {server}')
 
