@@ -52,7 +52,7 @@ class ContourViewer(TrameApp):
     @change('contour_value')
     def _on_contour(self, contour_value, **_):
         self.contour.SetValue(0, contour_value)
-        self.ctx.view.update_image()
+        self.ctx.view.render()
 
     def _build_ui(self):
         self.state.trame__title = 'Contour'

@@ -57,7 +57,7 @@ class ContourViewer(TrameApp):
         elif self.mode == 'trame':
             self.ctx.view.update_image()
         elif self.mode == 'wasm':
-            self.ctx.view.update_throttle()
+            self.ctx.view.render()
 
     def start_animation(self):
         if self.mode == 'server':
