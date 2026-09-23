@@ -19,7 +19,6 @@ HAS_WASM_SCREENSHOT = (
     VTK_VERSION.GetVTKMajorVersion() >= 9 and VTK_VERSION.GetVTKMinorVersion() >= 8
 ) or VTK_VERSION.GetVTKBuildVersion() >= 20260913
 
-
 PLOTTER_TO_STATE_ID_BY_SERVER = {}
 
 __all__ = [

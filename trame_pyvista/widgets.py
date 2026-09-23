@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 import io
 from pathlib import Path
 import tempfile
+import warnings
 import weakref
 
 from trame.app import get_server as trame_get_server
@@ -13,13 +15,32 @@ from trame.widgets.vtk import VtkLocalView
 from trame.widgets.vtk import VtkRemoteLocalView
 from trame.widgets.vtk import VtkRemoteView
 from trame_vtk.tools.vtksz2html import write_html
+from vtkmodules.vtkCommonCore import vtkVersion
 
 try:
     from typing import override
 except ImportError:  # Python < 3.12
 
-    def override(func):
+    def override(func): #noqa: D103
         return func
+
+
+VTK_VERSION = vtkVersion()
+
+IS_WASM_SUPPORTED = VTK_VERSION.GetVTKMajorVersion() >= 9 and VTK_VERSION.GetVTKMinorVersion() >= 7
+
+
+UPDATE_VTK_FOR_WASM = (
+    f'The current version of vtk ({VTK_VERSION.GetVTKVersionFull()}) is too old '
+    'to properly support PyVistaWasmView and new apps. '
+    'Please update to a VTK >= 9.7 by either running `pip install "vtk>=9.7"` or '
+    '`pip install "vtk==9.7.20260913.dev0" --index-url https://wheels.vtk.org` '
+    'for grabbing a nightly version.'
+)
+
+if not IS_WASM_SUPPORTED:
+    warnings.warn(UPDATE_VTK_FOR_WASM, stacklevel=2)
+
 
 
 CLOSED_PLOTTER_ERROR = (
@@ -29,7 +50,8 @@ CLOSED_PLOTTER_ERROR = (
 
 MISSING_WASM = (
     'The widget PyVistaWasmLocalView can only be used if trame-vtklocal is installed. '
-    'To install trame-vtklocal you should run "pip install trame-pyvista[wasm]".'
+    'To install trame-vtklocal you should run "pip install trame-pyvista[wasm]". '
+    'WASM needs VTK >= 9.7.'
 )
 
 MISSING_RCA = (
@@ -340,7 +362,7 @@ class _BaseView(ABC):
                 renderer.ResetCamera()
 
     def _post_initialize(self):
-        """Link plotter render to view update"""
+        """Link plotter render to view update."""
         # Callback to sync view on PyVista's render call when renders are suppressed
         self.plotter.add_on_render_callback(self._plotter_render_callback, render_event=False)  # type: ignore[union-attr]
 
@@ -356,11 +378,11 @@ class _BaseView(ABC):
     def _export_screenshot(self, filename):
         """Make the web client download a file capturing the current rendering."""
 
-    def _update_camera(self):
-        """Some implementation needs to explicitly push camera."""
+    def _update_camera(self): # noqa: B027
+        """Force camera synchronization if needed per concrete implementation."""
 
-    def _set_widgets(self, widgets):
-        """Some implementation needs to register widget for handling them properly."""
+    def _set_widgets(self, widgets): # noqa: B027
+        """Register widgets if needed per concrete implementation."""
 
     def _export_html(self, mode='wasm32', rendering='webgl'):
         """Export scene to HTML as StringIO buffer."""
@@ -446,6 +468,7 @@ try:
             self.update(push_camera=True)
 
         def render(self):
+            """Trigger a view refresh."""
             self.update_throttle()
 
         def _export_screenshot(self, filename):
