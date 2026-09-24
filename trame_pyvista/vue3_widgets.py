@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+from typing import Any
 import weakref
 
 import pyvista as pv
@@ -13,13 +15,19 @@ from vtkmodules.vtkCommonCore import vtkVersion
 
 from trame_pyvista.widgets import _BaseView
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from trame_server.core import Server
+    from vtkmodules.vtkInteractionWidgets import vtkAbstractWidget
+
 VTK_VERSION = vtkVersion()
 
 HAS_WASM_SCREENSHOT = (
     VTK_VERSION.GetVTKMajorVersion() >= 9 and VTK_VERSION.GetVTKMinorVersion() >= 8
 ) or VTK_VERSION.GetVTKBuildVersion() >= 20260913
 
-PLOTTER_TO_STATE_ID_BY_SERVER = {}
+PLOTTER_TO_STATE_ID_BY_SERVER: dict[str, dict[str, str]] = {}
 
 __all__ = [
     'PlotterState',
@@ -28,7 +36,7 @@ __all__ = [
 ]
 
 
-def get_plotter_state(plotter, server):
+def get_plotter_state(plotter: pv.Plotter, server: Server) -> PlotterState:
     """Return the state instance bound to a plotter, creating it if needed.
 
     Parameters
@@ -89,23 +97,24 @@ class PlotterState(dataclass.StateDataModel):
     can_download_data = dataclass.Sync(bool, True)
     can_download_html = dataclass.Sync(bool, True)
 
-    def __init__(self, *args, plotter=None, **kwargs):
+    def __init__(self, *args: Any, plotter: pv.Plotter, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._plotter = weakref.ref(plotter)
 
     @property
-    def plotter(self):
+    def plotter(self) -> pv.Plotter | None:
         """Return the plotter if still available or None."""
         return self._plotter()
 
-    def update_from_plotter(self):
+    def update_from_plotter(self) -> None:
         """Initialize the state from the current plotter configuration."""
         if self.plotter is None:
             return
 
-        if hasattr(self.plotter.iren, 'SetTrackInteractorObserverInstances'):
+        iren = self.plotter.iren
+        if iren is not None and hasattr(iren, 'SetTrackInteractorObserverInstances'):
             self.need_register_widgets = False
-            self.plotter.iren.SetTrackInteractorObserverInstances(1)
+            iren.SetTrackInteractorObserverInstances(1)
         else:
             self.need_register_widgets = True
 
@@ -133,7 +142,7 @@ class PlotterState(dataclass.StateDataModel):
 
         self.skip_render = False
 
-    def render(self):
+    def render(self) -> None:
         """Update the attached view unless rendering is suspended."""
         if self.skip_render:
             return
@@ -141,7 +150,7 @@ class PlotterState(dataclass.StateDataModel):
         if self.view:
             self.view.render()
 
-    def reset_camera(self):
+    def reset_camera(self) -> None:
         """Reset the camera of the attached view unless rendering is suspended."""
         if self.skip_render:
             return
@@ -149,13 +158,13 @@ class PlotterState(dataclass.StateDataModel):
         if self.view:
             self.view.reset_camera()
 
-    def register_widgets(self, widgets):
+    def register_widgets(self, widgets: Sequence[vtkAbstractWidget]) -> None:
         """Register VTK widgets with the attached view when supported."""
         if self.view:
             self.view._set_widgets(widgets)
 
     @dataclass.watch('show_orientation_axis', sync=True)
-    def _update_orientation_axis(self, show_orientation_axis):
+    def _update_orientation_axis(self, show_orientation_axis: bool) -> None:
         """Show or hide the orientation axes on every renderer."""
         if self.plotter is None:
             return
@@ -174,7 +183,7 @@ class PlotterState(dataclass.StateDataModel):
         self.render()
 
     @dataclass.watch('show_bounding_box', sync=True)
-    def _update_bounding_box(self, show_bounding_box):
+    def _update_bounding_box(self, show_bounding_box: bool) -> None:
         """Show or hide the bounding box on every renderer."""
         if self.plotter is None:
             return
@@ -188,7 +197,7 @@ class PlotterState(dataclass.StateDataModel):
         self.render()
 
     @dataclass.watch('show_edges', sync=True)
-    def _update_edge_visibility(self, show_edges):
+    def _update_edge_visibility(self, show_edges: bool) -> None:
         """Show or hide mesh edges on every actor."""
         if self.plotter is None:
             return
@@ -201,7 +210,7 @@ class PlotterState(dataclass.StateDataModel):
         self.render()
 
     @dataclass.watch('use_parallel_projection', sync=True)
-    def _update_parallel_projection(self, use_parallel_projection):
+    def _update_parallel_projection(self, use_parallel_projection: bool) -> None:
         """Toggle parallel projection on every renderer."""
         if self.plotter is None:
             return
@@ -215,7 +224,7 @@ class PlotterState(dataclass.StateDataModel):
         self.render()
 
     @dataclass.watch('show_axis_grid', sync=True)
-    def _update_axis_grid(self, show_axis_grid):
+    def _update_axis_grid(self, show_axis_grid: bool) -> None:
         """Show or hide the axis grid (ruler) on every renderer."""
         if self.plotter is None:
             return
@@ -232,7 +241,7 @@ class PlotterState(dataclass.StateDataModel):
         self.render()
 
 
-def btn(**kwargs):
+def btn(**kwargs: Any) -> None:
     """Create a compact toolbar button."""
     v3.VBtn(
         density='compact',
@@ -266,13 +275,13 @@ class PyVistaPlotterControls(dc.Provider):
 
     def __init__(
         self,
-        view,
+        view: _BaseView,
         *,
-        style='position:absolute;top:1rem;left:1rem;z-index:10;',
-        classes='d-flex flex-row pa-1 border-thin bg-white',
-        variant='plain',
-        **kwargs,
-    ):
+        style: str = 'position:absolute;top:1rem;left:1rem;z-index:10;',
+        classes: str = 'd-flex flex-row pa-1 border-thin bg-white',
+        variant: str = 'plain',
+        **kwargs: Any,
+    ) -> None:
         super().__init__(name='plotter')
         self._view = view
         self._state = get_plotter_state(view._plotter(), self.server)
@@ -397,59 +406,59 @@ class PyVistaPlotterControls(dc.Provider):
                 )
 
     @property
-    def view(self):
+    def view(self) -> _BaseView:
         """Return the controlled view."""
         return self._view
 
     @property
-    def plotter(self):
+    def plotter(self) -> pv.Plotter | None:
         """Return the plotter if still available or None."""
         return self._state.plotter
 
-    def download_screenshot(self):
+    def download_screenshot(self) -> Any:
         """Capture a PNG screenshot of the view."""
         return self.view._export_screenshot('pyvista-screenshot.png')
 
-    def download_view3d(self):
+    def download_view3d(self) -> Any:
         """Export the scene as a standalone HTML file."""
         return self.view._export_html()
 
-    def download_scene(self):
+    def download_scene(self) -> Any:
         """Export the scene as a data file."""
         return self.view._export_data()
 
-    def reset_camera(self):
+    def reset_camera(self) -> None:
         """Reset the camera of the view."""
         self.view.reset_camera()
 
-    def view_isometric(self):
+    def view_isometric(self) -> None:
         """View the scene from an isometric perspective."""
         if self.plotter is None:
             return
 
-        self.plotter.view_isometric(render=False)
+        self.plotter.renderer.view_isometric(render=False)
         self.view._update_camera()
 
-    def view_yz(self):
+    def view_yz(self) -> None:
         """View YZ plane."""
         if self.plotter is None:
             return
 
-        self.plotter.view_yz(render=False)
+        self.plotter.renderer.view_yz(render=False)
         self.view._update_camera()
 
-    def view_xz(self):
+    def view_xz(self) -> None:
         """View XZ plane."""
         if self.plotter is None:
             return
 
-        self.plotter.view_xz(render=False)
+        self.plotter.renderer.view_xz(render=False)
         self.view._update_camera()
 
-    def view_xy(self):
+    def view_xy(self) -> None:
         """View XY plane."""
         if self.plotter is None:
             return
 
-        self.plotter.view_xy(render=False)
+        self.plotter.renderer.view_xy(render=False)
         self.view._update_camera()
