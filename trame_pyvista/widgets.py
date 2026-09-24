@@ -476,6 +476,25 @@ try:
             return self.download_screenshot(filename, f'image/{ext}')
 
 
+        # -----------------------------------------------------------
+        # Legacy API for compatibility - do not use in your code
+        # -----------------------------------------------------------
+
+        def update_camera(self, **_):
+            """Do not use by hand - kept for legacy viewer."""
+            self._update_camera()
+
+        def push_camera(self, **_):
+            """Do not use by hand - kept for legacy viewer."""
+            self._update_camera()
+
+        def update_image(self, **_):
+            """Do not use - kept for legacy viewer."""
+            self.render()
+
+        # -----------------------------------------------------------
+
+
 except ImportError:
 
     def PyVistaWasmView(*_, **__):  # type: ignore[no-redef]  # noqa: N802
