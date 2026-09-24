@@ -21,7 +21,7 @@ try:
     from typing import override
 except ImportError:  # Python < 3.12
 
-    def override(func): #noqa: D103
+    def override(func):  # noqa: D103
         return func
 
 
@@ -40,7 +40,6 @@ UPDATE_VTK_FOR_WASM = (
 
 if not IS_WASM_SUPPORTED:
     warnings.warn(UPDATE_VTK_FOR_WASM, stacklevel=2)
-
 
 
 CLOSED_PLOTTER_ERROR = (
@@ -378,10 +377,10 @@ class _BaseView(ABC):
     def _export_screenshot(self, filename):
         """Make the web client download a file capturing the current rendering."""
 
-    def _update_camera(self): # noqa: B027
+    def _update_camera(self):  # noqa: B027
         """Force camera synchronization if needed per concrete implementation."""
 
-    def _set_widgets(self, widgets): # noqa: B027
+    def _set_widgets(self, widgets):  # noqa: B027
         """Register widgets if needed per concrete implementation."""
 
     def _export_html(self, mode='wasm32', rendering='webgl'):
