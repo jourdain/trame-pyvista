@@ -477,7 +477,7 @@ try:
 
 except ImportError:
 
-    def PyVistaWasmView(*_, **__):  # noqa: N802
+    def PyVistaWasmView(*_, **__):  # type: ignore[no-redef]  # noqa: N802
         """Raise an error as trame-vtklocal is not installed."""
         raise RuntimeError(MISSING_WASM)
 
@@ -555,6 +555,6 @@ try:
 
 except ImportError:
 
-    def PyVistaRCAView(*_, **__):  # noqa: N802
+    def PyVistaRCAView(*_, **__):  # type: ignore[no-redef]  # noqa: N802
         """Raise an error as trame-rca is not installed."""
         raise RuntimeError(MISSING_RCA)
