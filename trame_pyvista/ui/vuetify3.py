@@ -16,7 +16,6 @@ from trame.widgets import vuetify3 as vuetify
 from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
-from trame_pyvista.widgets import PyVistaWasmView
 
 from .base_viewer import BaseViewer
 
@@ -127,7 +126,6 @@ class Viewer(BaseViewer):
             * ``'server'``: Uses a view that is purely server rendering.
             * ``'client'``: Uses a view that is purely client rendering (generally
               safe without a virtual frame buffer)
-            * ``'wasm'``: Uses a view that is purely client rendering using vtk-wasm
 
         default_server_rendering : bool, default: True
             Whether to use server-side or client-side rendering on-start when
@@ -207,38 +205,29 @@ class Viewer(BaseViewer):
                     tooltip=f'Toggle rendering mode '
                     f"({{{{ {self.SERVER_RENDERING} ? 'remote' : 'local' }}}})",
                 )
-
-            if mode == 'wasm':
+            with vuetify.VRow(
+                v_show=(self.SERVER_RENDERING, default_server_rendering),
+                classes='pa-0 ma-0 align-center fill-height',
+                style='flex-wrap: nowrap; flex: unset',
+            ):
                 checkbox(
                     model=(self.PARALLEL, False),
                     icons=('mdi-camera-off', 'mdi-camera-switch'),
                     tooltip=f'Toggle parallel projection '
                     f"({{{{ {self.PARALLEL} ? 'on' : 'off' }}}})",
                 )
-            else:
-                with vuetify.VRow(
-                    v_show=(self.SERVER_RENDERING, default_server_rendering),
-                    classes='pa-0 ma-0 align-center fill-height',
-                    style='flex-wrap: nowrap; flex: unset',
-                ):
-                    checkbox(
-                        model=(self.PARALLEL, False),
-                        icons=('mdi-camera-off', 'mdi-camera-switch'),
-                        tooltip=f'Toggle parallel projection '
-                        f"({{{{ {self.PARALLEL} ? 'on' : 'off' }}}})",
-                    )
 
-                    def attach_screenshot():
-                        return server.protocol.addAttachment(self.screenshot())
+                def attach_screenshot():
+                    return server.protocol.addAttachment(self.screenshot())
 
-                    button(
-                        # Must use single-quote string for JS here
-                        click="utils.download('screenshot.png', "
-                        f"trigger('{server.trigger_name(attach_screenshot)}'), "
-                        "'image/png')",
-                        icon='mdi-file-png-box',
-                        tooltip='Save screenshot',
-                    )
+                button(
+                    # Must use single-quote string for JS here
+                    click="utils.download('screenshot.png', "
+                    f"trigger('{server.trigger_name(attach_screenshot)}'), "
+                    "'image/png')",
+                    icon='mdi-file-png-box',
+                    tooltip='Save screenshot',
+                )
 
             def attach_export():
                 return server.protocol.addAttachment(self.export())
@@ -364,8 +353,6 @@ class Viewer(BaseViewer):
                 view = PyVistaRemoteView(self.plotter, **kwargs)
             elif mode == 'client':
                 view = PyVistaLocalView(self.plotter, **kwargs)
-            elif mode == 'wasm':
-                view = PyVistaWasmView(self.plotter, **kwargs)
 
             self._html_views.add(view)
             if add_menu:
