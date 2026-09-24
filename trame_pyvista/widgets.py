@@ -6,6 +6,7 @@ from abc import ABC
 from abc import abstractmethod
 import io
 from pathlib import Path
+import sys
 import tempfile
 import warnings
 import weakref
@@ -17,9 +18,9 @@ from trame.widgets.vtk import VtkRemoteView
 from trame_vtk.tools.vtksz2html import write_html
 from vtkmodules.vtkCommonCore import vtkVersion
 
-try:
+if sys.version_info >= (3, 12):
     from typing import override
-except ImportError:  # Python < 3.12
+else:
 
     def override(func):  # noqa: D103
         return func
