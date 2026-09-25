@@ -13,6 +13,7 @@ from trame_pyvista import module
 from trame_pyvista import vue3_widgets
 from trame_pyvista import widgets
 
+IS_WASM_SUPPORTED = widgets.IS_WASM_SUPPORTED
 INVALID_APPLICATION_MESSAGE = """
 
 PyVista currently only provides a single viewer named "default".
@@ -87,6 +88,13 @@ class SimpleViewer(TrameApp, widgets._BaseView):
         TrameApp.__init__(self, server)
         self.server.enable_module(module)
         self._plotter = weakref.ref(plotter)
+        self.view_wasm = None  # needs vtk>=9.7
+
+        # Add warning since some capabilities are now hidden
+        if not IS_WASM_SUPPORTED:
+            import warnings
+
+            warnings.warn(widgets.UPDATE_VTK_FOR_WASM, stacklevel=2)
 
         # Define UI
         with VAppLayout(self.server, full_height=True, height='100%') as self.ui:
@@ -95,9 +103,10 @@ class SimpleViewer(TrameApp, widgets._BaseView):
             with html.Div(classes='pyvista-client-server'):
                 with html.Transition(name='fade'):
                     # Local rendering component
-                    self.view_wasm = widgets.PyVistaWasmView(
-                        self.plotter, v_if="pyvista_rendering_mode == 'local'"
-                    )
+                    if IS_WASM_SUPPORTED:
+                        self.view_wasm = widgets.PyVistaWasmView(
+                            self.plotter, v_if="pyvista_rendering_mode == 'local'"
+                        )
 
                     # Remote rendering component
                     self.view_rca = widgets.PyVistaRCAView(
@@ -105,24 +114,29 @@ class SimpleViewer(TrameApp, widgets._BaseView):
                     )
 
                 # Toggle for remote/local rendering
-                v3.VSwitch(
-                    model_value=('pyvista_rendering_mode', mode),
-                    hide_details=True,
-                    inset=True,
-                    true_value='remote',
-                    false_value='local',
-                    false_icon='mdi-laptop',
-                    true_icon='mdi-cloud-outline',
-                    classes='toggle',
-                    update_modelValue=self._toggle_rendering_mode,
-                    v_tooltip_left=(
-                        "pyvista_rendering_mode === 'remote' "
-                        "? 'Server side rendering' : 'Client side rendering'"
-                    ),
-                )
+                if IS_WASM_SUPPORTED:
+                    v3.VSwitch(
+                        model_value=('pyvista_rendering_mode', mode),
+                        hide_details=True,
+                        inset=True,
+                        true_value='remote',
+                        false_value='local',
+                        false_icon='mdi-laptop',
+                        true_icon='mdi-cloud-outline',
+                        classes='toggle',
+                        update_modelValue=self._toggle_rendering_mode,
+                        v_tooltip_left=(
+                            "pyvista_rendering_mode === 'remote' "
+                            "? 'Server side rendering' : 'Client side rendering'"
+                        ),
+                    )
 
             # Plotter toolbar
             self.controls = vue3_widgets.PyVistaPlotterControls(self)
+
+        # Fallback to remote if WASM is not an option
+        if not IS_WASM_SUPPORTED:
+            self.use_remote_rendering()
 
     def _toggle_rendering_mode(self):
         """Switch between local and remote rendering."""
@@ -138,6 +152,9 @@ class SimpleViewer(TrameApp, widgets._BaseView):
 
     def use_local_rendering(self):
         """Switch to client side rendering after syncing the scene."""
+        if not IS_WASM_SUPPORTED:
+            return
+
         self.controls._state.is_remote = False
         self.view_wasm.update(push_camera=True)
         self.state.pyvista_rendering_mode = 'local'
@@ -145,6 +162,9 @@ class SimpleViewer(TrameApp, widgets._BaseView):
     @property
     def active_view(self):
         """Return the view matching the current rendering mode."""
+        if not IS_WASM_SUPPORTED:
+            return self.view_rca
+
         if self.state.pyvista_rendering_mode == 'remote':
             return self.view_rca
 
@@ -166,7 +186,8 @@ class SimpleViewer(TrameApp, widgets._BaseView):
 
         Part of the view API used by ``PyVistaPlotterControls``.
         """
-        self.view_wasm._set_widgets(widgets)
+        if IS_WASM_SUPPORTED:
+            self.view_wasm._set_widgets(widgets)
 
     def _update_camera(self):
         """Push the plotter camera to the active view.

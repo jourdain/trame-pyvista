@@ -11,7 +11,6 @@ from trame.app import dataclass
 from trame.widgets import dataclass as dc
 from trame.widgets import html
 from trame.widgets import vuetify3 as v3
-from vtkmodules.vtkCommonCore import vtkVersion
 
 from trame_pyvista.widgets import _BaseView
 
@@ -21,11 +20,8 @@ if TYPE_CHECKING:
     from trame_server.core import Server
     from vtkmodules.vtkInteractionWidgets import vtkAbstractWidget
 
-VTK_VERSION = vtkVersion()
-
-HAS_WASM_SCREENSHOT = (
-    VTK_VERSION.GetVTKMajorVersion() >= 9 and VTK_VERSION.GetVTKMinorVersion() >= 8
-) or VTK_VERSION.GetVTKBuildVersion() >= 20260913
+IS_WASM_SUPPORTED = pv.vtk_version_info >= (9, 7, 0)
+HAS_WASM_SCREENSHOT = pv.vtk_version_info >= (9, 8, 0) or pv.vtk_version_info >= (9, 7, 20260913)
 
 PLOTTER_TO_STATE_ID_BY_SERVER: dict[str, dict[str, str]] = {}
 
@@ -384,26 +380,27 @@ class PyVistaPlotterControls(dc.Provider):
                     icon='mdi-file-image-outline',
                     v_tooltip_bottom="'Save screenshot'",
                 )
-                btn(
-                    v_if='plotter.can_download_data',
-                    click=(
-                        "utils.download('pyvista-scene.wazex', "
-                        f"trigger('{self.server.trigger_name(self.download_scene)}'), "
-                        "'application/octet-stream')"
-                    ),
-                    icon='mdi-database-arrow-down-outline',
-                    v_tooltip_bottom="'Save scene as data file'",
-                )
-                btn(
-                    v_if='plotter.can_download_html',
-                    click=(
-                        "utils.download('pyvista-viewer.html', "
-                        f"trigger('{self.server.trigger_name(self.download_view3d)}'), "
-                        "'application/octet-stream')"
-                    ),
-                    icon='mdi-cloud-download-outline',
-                    v_tooltip_bottom="'Save scene as HTML'",
-                )
+                if IS_WASM_SUPPORTED:
+                    btn(
+                        v_if='plotter.can_download_data',
+                        click=(
+                            "utils.download('pyvista-scene.wazex', "
+                            f"trigger('{self.server.trigger_name(self.download_scene)}'), "
+                            "'application/octet-stream')"
+                        ),
+                        icon='mdi-database-arrow-down-outline',
+                        v_tooltip_bottom="'Save scene as data file'",
+                    )
+                    btn(
+                        v_if='plotter.can_download_html',
+                        click=(
+                            "utils.download('pyvista-viewer.html', "
+                            f"trigger('{self.server.trigger_name(self.download_view3d)}'), "
+                            "'application/octet-stream')"
+                        ),
+                        icon='mdi-cloud-download-outline',
+                        v_tooltip_bottom="'Save scene as HTML'",
+                    )
 
     @property
     def view(self) -> _BaseView:

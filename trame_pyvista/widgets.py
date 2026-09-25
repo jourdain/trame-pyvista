@@ -8,15 +8,16 @@ import io
 from pathlib import Path
 import sys
 import tempfile
-import warnings
 import weakref
 
+import pyvista as pv
 from trame.app import get_server as trame_get_server
+from trame.widgets import rca
+from trame.widgets import vtklocal
 from trame.widgets.vtk import VtkLocalView
 from trame.widgets.vtk import VtkRemoteLocalView
 from trame.widgets.vtk import VtkRemoteView
 from trame_vtk.tools.vtksz2html import write_html
-from vtkmodules.vtkCommonCore import vtkVersion
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -26,22 +27,16 @@ else:
         return func
 
 
-VTK_VERSION = vtkVersion()
-
-IS_WASM_SUPPORTED = VTK_VERSION.GetVTKMajorVersion() >= 9 and VTK_VERSION.GetVTKMinorVersion() >= 7
-
+IS_WASM_SUPPORTED = pv.vtk_version_info >= (9, 7, 0)
 
 UPDATE_VTK_FOR_WASM = (
-    f'The current version of vtk ({VTK_VERSION.GetVTKVersionFull()}) is too old '
-    'to properly support PyVistaWasmView and new apps. '
-    'Please update to a VTK >= 9.7 by either running `pip install "vtk>=9.7"` or '
-    '`pip install "vtk==9.7.20260913.dev0" --index-url https://wheels.vtk.org` '
-    'for grabbing a nightly version.'
+    '\n\n  The current version of vtk '
+    f'{".".join(str(v) for v in pv.vtk_version_info)} is too old\n'
+    '  to properly support PyVistaWasmView and new apps.\n'
+    '  Please update to a VTK >= 9.7 by either running `pip install "vtk>=9.7"` or\n'
+    '  `pip install "vtk==9.7.20260913.dev0" --index-url https://wheels.vtk.org`\n'
+    '  for grabbing a nightly version.\n'
 )
-
-if not IS_WASM_SUPPORTED:
-    warnings.warn(UPDATE_VTK_FOR_WASM, stacklevel=2)
-
 
 CLOSED_PLOTTER_ERROR = (
     'The render window for this plotter has been destroyed. '
@@ -410,171 +405,153 @@ class _BaseView(ABC):
         return exporter.to_wazex(vtk_objects)
 
 
-try:
-    from trame.widgets import vtklocal
+class PyVistaWasmView(vtklocal.LocalView, _BaseView):  # type: ignore[misc]
+    """PyVista wrapping of trame LocalView for in-browser rendering.
 
-    class PyVistaWasmView(vtklocal.LocalView, _BaseView):  # type: ignore[misc]
-        """PyVista wrapping of trame LocalView for in-browser rendering.
+    This will connect to and synchronize with a PyVista plotter to
+    perform client-side rendering with VTK.wasm in the browser.
 
-        This will connect to and synchronize with a PyVista plotter to
-        perform client-side rendering with VTK.wasm in the browser.
+    Parameters
+    ----------
+    plotter : pyvista.Plotter
+        The PyVista Plotter to represent in the output view.
 
-        Parameters
-        ----------
-        plotter : pyvista.Plotter
-            The PyVista Plotter to represent in the output view.
+    **kwargs : dict, optional
+        Any additional keyword arguments to pass to
+        ``trame.widgets.vtklocal.LocalView``.
 
-        **kwargs : dict, optional
-            Any additional keyword arguments to pass to
-            ``trame.widgets.vtklocal.LocalView``.
+    """
 
-        """
+    def __init__(self, plotter, **kwargs):
+        """Create a trame local view from a PyVista Plotter."""
+        if not IS_WASM_SUPPORTED:
+            raise pv.VTKVersionError(UPDATE_VTK_FOR_WASM)
 
-        def __init__(self, plotter, **kwargs):
-            """Create a trame local view from a PyVista Plotter."""
-            _BaseView.__init__(self, plotter)
+        _BaseView.__init__(self, plotter)
 
-            vtklocal.LocalView.__init__(
-                self,
-                self.plotter.render_window,  # type: ignore[union-attr]
-                end_interaction=(self._sync_camera, '[$event]'),
-                **kwargs,
-            )
+        vtklocal.LocalView.__init__(
+            self,
+            self.plotter.render_window,  # type: ignore[union-attr]
+            end_interaction=(self._sync_camera, '[$event]'),
+            **kwargs,
+        )
 
-            self._post_initialize()
+        self._post_initialize()
 
-        def _sync_camera(self, camera_states):
-            """Apply client camera states to the server-side VTK objects."""
-            for vtk_state in camera_states:
-                self.vtk_update_from_state(vtk_state)
+    def _sync_camera(self, camera_states):
+        """Apply client camera states to the server-side VTK objects."""
+        for vtk_state in camera_states:
+            self.vtk_update_from_state(vtk_state)
 
-        def _post_initialize(self):
-            """Register the orientation widgets after the base initialization."""
-            super()._post_initialize()
-            self._set_widgets(
-                [ren.axes_widget for ren in self.plotter.renderers if ren.axes_widget is not None],  # type: ignore[union-attr]
-            )
+    def _post_initialize(self):
+        """Register the orientation widgets after the base initialization."""
+        super()._post_initialize()
+        self._set_widgets(
+            [ren.axes_widget for ren in self.plotter.renderers if ren.axes_widget is not None],  # type: ignore[union-attr]
+        )
 
-        def _set_widgets(self, widgets=None):
-            """Register VTK widgets to mimic the vtk.js local view API."""
-            if not widgets:
-                widgets = []
+    def _set_widgets(self, widgets=None):
+        """Register VTK widgets to mimic the vtk.js local view API."""
+        if not widgets:
+            widgets = []
 
-            for w in widgets:
-                self.register_vtk_object(w)
+        for w in widgets:
+            self.register_vtk_object(w)
 
-        def _update_camera(self):
-            """Sync scene with camera update."""
-            self.update(push_camera=True)
+    def _update_camera(self):
+        """Sync scene with camera update."""
+        self.update(push_camera=True)
 
-        def render(self):
-            """Trigger a view refresh."""
-            self.update_throttle()
+    def render(self):
+        """Trigger a view refresh."""
+        self.update_throttle()
 
-        def _export_screenshot(self, filename):
-            ext = Path(filename).suffix
-            return self.download_screenshot(filename, f'image/{ext}')
+    def _export_screenshot(self, filename):
+        ext = Path(filename).suffix
+        return self.download_screenshot(filename, f'image/{ext}')
 
+    # -----------------------------------------------------------
+    # Legacy API for compatibility - do not use in your code
+    # -----------------------------------------------------------
 
-        # -----------------------------------------------------------
-        # Legacy API for compatibility - do not use in your code
-        # -----------------------------------------------------------
+    def update_camera(self, **_):
+        """Do not use by hand - kept for legacy viewer."""
+        self._update_camera()
 
-        def update_camera(self, **_):
-            """Do not use by hand - kept for legacy viewer."""
-            self._update_camera()
+    def push_camera(self, **_):
+        """Do not use by hand - kept for legacy viewer."""
+        self._update_camera()
 
-        def push_camera(self, **_):
-            """Do not use by hand - kept for legacy viewer."""
-            self._update_camera()
+    def update_image(self, **_):
+        """Do not use - kept for legacy viewer."""
+        self.render()
 
-        def update_image(self, **_):
-            """Do not use - kept for legacy viewer."""
-            self.render()
-
-        # -----------------------------------------------------------
-
-
-except ImportError:
-
-    def PyVistaWasmView(*_, **__):  # type: ignore[no-redef]  # noqa: N802
-        """Raise an error as trame-vtklocal is not installed."""
-        raise RuntimeError(MISSING_WASM)
+    # -----------------------------------------------------------
 
 
-try:
-    from trame.widgets import rca
+class PyVistaRCAView(rca.RemoteControlledArea, _BaseView):  # type: ignore[misc]
+    """PyVista wrapping of trame RemoteControlledArea for remote rendering.
 
-    class PyVistaRCAView(rca.RemoteControlledArea, _BaseView):  # type: ignore[misc]
-        """PyVista wrapping of trame RemoteControlledArea for remote rendering.
+    This will connect to and synchronize with a PyVista plotter to
+    perform server-side rendering with trame-rca.
 
-        This will connect to and synchronize with a PyVista plotter to
-        perform server-side rendering with trame-rca.
+    Parameters
+    ----------
+    plotter : pyvista.Plotter
+        The PyVista Plotter to represent in the output view.
 
-        Parameters
-        ----------
-        plotter : pyvista.Plotter
-            The PyVista Plotter to represent in the output view.
+    display : str, default: 'image'
+        Display mode of the remote area. ``'image'`` streams JPEG images.
 
-        display : str, default: 'image'
-            Display mode of the remote area. ``'image'`` streams JPEG images.
+    target_fps : int, default: 60
+        Maximum number of frames per second pushed to the client.
 
-        target_fps : int, default: 60
-            Maximum number of frames per second pushed to the client.
+    **kwargs : dict, optional
+        Any additional keyword arguments to pass to
+        ``trame.widgets.rca.RemoteControlledArea``.
 
-        **kwargs : dict, optional
-            Any additional keyword arguments to pass to
-            ``trame.widgets.rca.RemoteControlledArea``.
+    """
 
-        """
+    def __init__(self, plotter, *, display='image', target_fps=60, **kwargs):
+        """Create a trame local view from a PyVista Plotter."""
+        _BaseView.__init__(self, plotter)
 
-        def __init__(self, plotter, *, display='image', target_fps=60, **kwargs):
-            """Create a trame local view from a PyVista Plotter."""
-            _BaseView.__init__(self, plotter)
+        rca.RemoteControlledArea.__init__(
+            self,
+            display=display,
+            **kwargs,
+        )
+        self.handler = self.create_view_handler(
+            self.plotter.render_window,  # type: ignore[union-attr]
+            encoder='turbo-jpeg' if display == 'image' else None,
+            target_fps=target_fps,
+        )
 
-            rca.RemoteControlledArea.__init__(
-                self,
-                display=display,
-                **kwargs,
-            )
-            self.handler = self.create_view_handler(
-                self.plotter.render_window,  # type: ignore[union-attr]
-                encoder='turbo-jpeg' if display == 'image' else None,
-                target_fps=target_fps,
-            )
+    def render(self):
+        """Render and push a new image."""
+        self.handler.update()
 
-        def render(self):
-            """Render and push a new image."""
-            self.handler.update()
+    def reset_camera(self):
+        """Reset the plotter camera and push a new image."""
+        self.plotter.reset_camera()
+        self.render()
 
-        def reset_camera(self):
-            """Reset the plotter camera and push a new image."""
-            self.plotter.reset_camera()
-            self.render()
+    def _update_camera(self):
+        """Sync scene with camera update."""
+        self.render()
 
-        def _update_camera(self):
-            """Sync scene with camera update."""
-            self.render()
+    @property
+    def target_fps(self):
+        """Maximum number of frames per second pushed to the client."""
+        return self.handler.target_fps
 
-        @property
-        def target_fps(self):
-            """Maximum number of frames per second pushed to the client."""
-            return self.handler.target_fps
+    @target_fps.setter
+    def target_fps(self, v):
+        self.handler.target_fps = v
 
-        @target_fps.setter
-        def target_fps(self, v):
-            self.handler.target_fps = v
-
-        def _export_screenshot(self, filename):
-            """Capture a screenshot of the plotter and return its bytes."""
-            with tempfile.TemporaryDirectory() as tmp_dir_str:
-                screenshot_img_file = Path(tmp_dir_str) / filename
-                self.plotter.screenshot(screenshot_img_file)
-                return screenshot_img_file.read_bytes()
-
-
-except ImportError:
-
-    def PyVistaRCAView(*_, **__):  # type: ignore[no-redef]  # noqa: N802
-        """Raise an error as trame-rca is not installed."""
-        raise RuntimeError(MISSING_RCA)
+    def _export_screenshot(self, filename):
+        """Capture a screenshot of the plotter and return its bytes."""
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            screenshot_img_file = Path(tmp_dir_str) / filename
+            self.plotter.screenshot(screenshot_img_file)
+            return screenshot_img_file.read_bytes()
