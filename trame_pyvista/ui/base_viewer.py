@@ -277,18 +277,20 @@ class BaseViewer:
             # dynamic attribute. The Trame-Client getattr prints an error message which
             # is undesirable in this case.
             # https://github.com/Kitware/trame-client/blob/8e3e2042214fd238b628216bff48d1762adf50a3/trame_client/widgets/core.py#L467
-            if 'set_widgets' in type(view).__dict__ or '_set_widgets' in type(view).__dict__:
-                method = getattr(view, 'set_widgets', getattr(view, '_set_widgets', None))
-                # VtkRemoteView does not have set_widgets function, but
-                # VtkRemoteLocalView and VtkLocalView do.
-                if callable(method):
-                    method(
-                        [
-                            ren.axes_widget
-                            for ren in self.plotter.renderers
-                            if ren.axes_widget is not None
-                        ],
-                    )
+            if 'set_widgets' in type(view).__dict__:
+                method = view.set_widgets
+            elif '_set_widgets' in type(view).__dict__:
+                method = view._set_widgets
+            else:
+                method = None
+            if callable(method):
+                method(
+                    [
+                        ren.axes_widget
+                        for ren in self.plotter.renderers
+                        if ren.axes_widget is not None
+                    ],
+                )
         self.update()
 
     def on_rendering_mode_change(self, **kwargs):
