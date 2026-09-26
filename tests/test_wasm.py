@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from importlib.metadata import version
-import sys
-import warnings
 
-from packaging.version import Version
 import pytest
 import pyvista as pv
 from trame_vtklocal.module import wasm
@@ -28,15 +24,6 @@ from trame_pyvista.widgets import get_server
 
 pytestmark = pytest.mark.skipif(
     not widgets.IS_WASM_SUPPORTED, reason='VTK.wasm views need VTK >= 9.7'
-)
-
-VTKLOCAL_HAS_EXPORT_BUGS = Version(version('trame-vtklocal')) <= Version('1.7.0')
-TAR_FILTER_WARNS = VTKLOCAL_HAS_EXPORT_BUGS and (3, 12) <= sys.version_info < (3, 14)
-TAR_FILTER_WARNING = r'Python 3\.14 will, by default, filter extracted tar archives'
-
-needs_zipfile_mkdir = pytest.mark.skipif(
-    VTKLOCAL_HAS_EXPORT_BUGS and sys.version_info < (3, 11),
-    reason='trame-vtklocal <= 1.7.0 exports call ZipFile.mkdir (3.11+)',
 )
 
 
@@ -70,9 +57,7 @@ def vue3_server():
 @pytest.fixture(scope='session')
 def wasm_bundle():
     """Download and unpack the VTK.wasm bundle once and return its archive path."""
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', TAR_FILTER_WARNING, DeprecationWarning)
-        return exporter.find_wasm('wasm32')
+    return exporter.find_wasm('wasm32')
 
 
 @pytest.fixture
@@ -335,7 +320,6 @@ def test_controls_without_plotter(viewer, plotter, monkeypatch):
     assert plotter.camera_position == before
 
 
-@needs_zipfile_mkdir
 @pytest.mark.usefixtures('wasm_bundle')
 def test_controls_download_scene(viewer):
     controls = viewer.controls
@@ -407,7 +391,6 @@ def test_wasm_view_syncs_camera_from_client(plotter, vue3_server, monkeypatch):
     assert states == [{'Id': 1}, {'Id': 2}]
 
 
-@needs_zipfile_mkdir
 @pytest.mark.usefixtures('wasm_bundle')
 def test_wasm_view_exports(plotter, vue3_server):
     view = _run(lambda: PyVistaWasmView(plotter, trame_server=vue3_server))
@@ -446,7 +429,6 @@ def test_axis_visibility_syncs_wasm_view_widgets(plotter, vue3_server, monkeypat
     assert registered == [plotter.renderer.axes_widget]
 
 
-@needs_zipfile_mkdir
 def test_component_export_wazex(plotter, tmp_path):
     plotter.show_axes()
     assert plotter.trame.export_wazex(None)[:2] == b'PK'
@@ -454,7 +436,6 @@ def test_component_export_wazex(plotter, tmp_path):
     assert path.read_bytes()[:2] == b'PK'
 
 
-@needs_zipfile_mkdir
 @pytest.mark.usefixtures('wasm_bundle')
 def test_component_export_wasm_html(plotter, tmp_path):
     assert b'<html' in plotter.trame.export_wasm_html(None)[:1000].lower()
@@ -462,15 +443,10 @@ def test_component_export_wasm_html(plotter, tmp_path):
     assert 'webgpu' in path.read_text()
 
 
-@needs_zipfile_mkdir
-def test_wasm_bundle_extraction_warnings(plotter, wasm_bundle, tmp_path, monkeypatch):
+def test_wasm_bundle_extraction(plotter, wasm_bundle, tmp_path, monkeypatch):
     wasm_version, _ = wasm.get_wasm_info()
     monkeypatch.setattr(exporter, 'SERVE_PATH', tmp_path)
     monkeypatch.setattr(wasm, 'get_wasm_info', lambda wasm_bits: (wasm_version, wasm_bundle))
-    if TAR_FILTER_WARNS:
-        with pytest.warns(DeprecationWarning, match=TAR_FILTER_WARNING):
-            html = plotter.trame.export_wasm_html(None)
-    else:
-        html = plotter.trame.export_wasm_html(None)
+    html = plotter.trame.export_wasm_html(None)
     assert b'<html' in html[:1000].lower()
     assert (tmp_path / 'wasm32' / wasm_version / 'vtkWebAssembly.wasm').is_file()
