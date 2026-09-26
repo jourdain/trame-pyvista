@@ -285,7 +285,7 @@ class BaseViewer:
                 method = None
             # VtkRemoteView does not have set_widgets function, but
             # VtkRemoteLocalView and VtkLocalView do.
-            if callable(method):
+            if method is not None:
                 method(
                     [
                         ren.axes_widget
