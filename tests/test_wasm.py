@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import json
+import zipfile
 
 import pytest
 import pyvista as pv
@@ -25,6 +28,12 @@ from trame_pyvista.widgets import get_server
 pytestmark = pytest.mark.skipif(
     not widgets.IS_WASM_SUPPORTED, reason='VTK.wasm views need VTK >= 9.7'
 )
+
+
+def _wazex_ids(data):
+    """Return the root object ids listed in a ``wazex`` archive."""
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        return json.loads(archive.read('vtk-wasm.json'))['ids']
 
 
 def _run(func):
@@ -93,17 +102,17 @@ def test_simple_viewer_switches_rendering_mode(viewer, monkeypatch):
     state = viewer.controls._state
     updates = []
     monkeypatch.setattr(viewer.view_wasm, 'update', lambda **kwargs: updates.append(kwargs))
-    assert viewer.state.pyvista_rendering_mode == 'local'
+    assert viewer.state[viewer.RENDERING_MODE] == 'local'
     assert viewer.active_view is viewer.view_wasm
     assert not state.is_remote
 
     _run(viewer.use_remote_rendering)
-    assert viewer.state.pyvista_rendering_mode == 'remote'
+    assert viewer.state[viewer.RENDERING_MODE] == 'remote'
     assert viewer.active_view is viewer.view_rca
     assert state.is_remote
 
     _run(viewer._toggle_rendering_mode)
-    assert viewer.state.pyvista_rendering_mode == 'local'
+    assert viewer.state[viewer.RENDERING_MODE] == 'local'
     assert viewer.active_view is viewer.view_wasm
     assert not state.is_remote
     assert updates == [{'push_camera': True}]
@@ -145,11 +154,21 @@ def test_simple_viewer_without_wasm(plotter, vue3_server, monkeypatch):
     with pytest.warns(UserWarning, match='is too old'):
         app = _run(lambda: SimpleViewer(plotter, vue3_server))
     assert app.view_wasm is None
-    assert app.state.pyvista_rendering_mode == 'remote'
+    assert app.state[app.RENDERING_MODE] == 'remote'
+    assert app.controls._state.is_remote
     assert app.active_view is app.view_rca
     app.use_local_rendering()
-    assert app.state.pyvista_rendering_mode == 'remote'
+    assert app.state[app.RENDERING_MODE] == 'remote'
     app._set_widgets([])
+
+
+def test_simple_viewers_keep_their_own_rendering_mode(vue3_server):
+    first = _run(lambda: SimpleViewer(pv.Plotter(notebook=True), vue3_server))
+    _run(first.use_remote_rendering)
+    second = _run(lambda: SimpleViewer(pv.Plotter(notebook=True), vue3_server))
+    assert second.state[second.RENDERING_MODE] == 'local'
+    assert second.active_view is second.view_wasm
+    assert first.active_view is first.view_rca
 
 
 def test_plotter_state_is_shared_per_plotter(plotter, vue3_server):
@@ -190,6 +209,15 @@ def test_plotter_state_tracks_widgets(plotter, vue3_server):
     assert not state.need_register_widgets
 
 
+def test_toolbar_axes_reach_the_wasm_scene(viewer, plotter):
+    state = viewer.controls._state
+    assert not state.need_register_widgets
+    _run(lambda: setattr(state, 'show_orientation_axis', True))
+    manager = viewer.view_wasm.api.vtk_object_manager
+    root = viewer.view_wasm.get_wasm_id(plotter.render_window)
+    assert manager.GetId(plotter.renderer.axes_widget) in manager.GetAllDependencies(root)
+
+
 def test_plotter_state_registers_widgets_without_tracking(viewer, plotter, monkeypatch):
     state = viewer.controls._state
     with monkeypatch.context() as m:
@@ -199,7 +227,7 @@ def test_plotter_state_registers_widgets_without_tracking(viewer, plotter, monke
 
     registered = []
     monkeypatch.setattr(viewer.view_wasm, 'register_vtk_object', registered.append)
-    state.show_orientation_axis = True
+    _run(lambda: setattr(state, 'show_orientation_axis', True))
     assert registered == [plotter.renderer.axes_widget]
 
 
@@ -349,7 +377,10 @@ def test_wasm_view(plotter, vue3_server, monkeypatch):
     view = _run(lambda: PyVistaWasmView(plotter, trame_server=vue3_server))
     assert view.get_wasm_id(plotter.renderer.axes_widget)
 
+    registered = []
+    monkeypatch.setattr(view, 'register_vtk_object', registered.append)
     view._set_widgets(None)
+    assert registered == []
 
     pushes = []
     monkeypatch.setattr(view, 'update', lambda **kwargs: pushes.append(kwargs))
@@ -394,8 +425,11 @@ def test_wasm_view_syncs_camera_from_client(plotter, vue3_server, monkeypatch):
 @pytest.mark.usefixtures('wasm_bundle')
 def test_wasm_view_exports(plotter, vue3_server):
     view = _run(lambda: PyVistaWasmView(plotter, trame_server=vue3_server))
-    assert view._export_data()[:2] == b'PK'
-    assert b'<html' in view._export_html()[:1000].lower()
+    without_axes = _wazex_ids(view._export_data())
+    plotter.show_axes()
+    assert len(_wazex_ids(view._export_data())) == len(without_axes) + 1
+    html = view._export_html(mode='wasm32', rendering='webgpu').decode()
+    assert '"mode": "wasm32", "rendering": "webgpu"' in html
 
 
 def test_rca_view(plotter, vue3_server, monkeypatch):
@@ -430,17 +464,19 @@ def test_axis_visibility_syncs_wasm_view_widgets(plotter, vue3_server, monkeypat
 
 
 def test_component_export_wazex(plotter, tmp_path):
+    without_axes = _wazex_ids(plotter.trame.export_wazex(None))
     plotter.show_axes()
-    assert plotter.trame.export_wazex(None)[:2] == b'PK'
+    assert len(_wazex_ids(plotter.trame.export_wazex(None))) == len(without_axes) + 1
     path = plotter.trame.export_wazex(tmp_path / 'scene.wazex')
-    assert path.read_bytes()[:2] == b'PK'
+    assert _wazex_ids(path.read_bytes()) == _wazex_ids(plotter.trame.export_wazex(None))
 
 
-@pytest.mark.usefixtures('wasm_bundle')
-def test_component_export_wasm_html(plotter, tmp_path):
-    assert b'<html' in plotter.trame.export_wasm_html(None)[:1000].lower()
-    path = plotter.trame.export_wasm_html(tmp_path / 'scene.html', rendering='webgpu')
-    assert 'webgpu' in path.read_text()
+def test_component_export_wasm_html(plotter, wasm_bundle, tmp_path, monkeypatch):
+    html = plotter.trame.export_wasm_html(None).decode()
+    assert '"mode": "wasm32", "rendering": "webgl"' in html
+    monkeypatch.setattr(exporter, 'find_wasm', lambda wasm_bits: wasm_bundle)
+    path = plotter.trame.export_wasm_html(tmp_path / 'scene.html', 'wasm64', 'webgpu')
+    assert '"mode": "wasm64", "rendering": "webgpu"' in path.read_text()
 
 
 def test_wasm_bundle_extraction(plotter, wasm_bundle, tmp_path, monkeypatch):
