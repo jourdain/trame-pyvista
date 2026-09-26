@@ -425,7 +425,7 @@ def test_axis_visibility_syncs_wasm_view_widgets(plotter, vue3_server, monkeypat
     registered = []
     monkeypatch.setattr(view, 'register_vtk_object', registered.append)
     viewer = get_viewer(plotter)
-    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    _run(lambda: viewer.on_axis_visibility_change(**{viewer.AXIS: True}))
     assert registered == [plotter.renderer.axes_widget]
 
 
