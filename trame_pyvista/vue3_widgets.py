@@ -108,9 +108,9 @@ class PlotterState(dataclass.StateDataModel):
             return
 
         iren = self.plotter.iren
-        if iren is not None and hasattr(iren, 'SetTrackInteractorObserverInstances'):
+        if iren is not None and hasattr(iren.interactor, 'SetTrackInteractorObserverInstances'):
             self.need_register_widgets = False
-            iren.SetTrackInteractorObserverInstances(1)
+            iren.interactor.SetTrackInteractorObserverInstances(1)
         else:
             self.need_register_widgets = True
 
