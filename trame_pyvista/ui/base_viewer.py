@@ -283,6 +283,8 @@ class BaseViewer:
                 method = view._set_widgets
             else:
                 method = None
+            # VtkRemoteView does not have set_widgets function, but
+            # VtkRemoteLocalView and VtkLocalView do.
             if callable(method):
                 method(
                     [
