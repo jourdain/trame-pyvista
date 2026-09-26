@@ -110,7 +110,7 @@ class TrameComponent:
 
         Parameters
         ----------
-        filename : str | Path | None, optional
+        filename : str | Path | None, default: 'scene-export.wazex'
             Destination path. If ``None``, return the encoded bytes.
 
         Returns
@@ -142,11 +142,11 @@ class TrameComponent:
         filename : str | Path | None
             Destination path. If ``None``, return the encoded HTML.
 
-        mode: str = wasm32
-            Choose between `wasm32` or `wasm64` for the viewer.
+        mode : str, default: 'wasm32'
+            Choose between ``'wasm32'`` or ``'wasm64'`` for the viewer.
 
-        rendering: str = webgl
-            Choose between `webgl` or `webgpu` for the viewer.
+        rendering : str, default: 'webgl'
+            Choose between ``'webgl'`` or ``'webgpu'`` for the viewer.
 
         Returns
         -------
