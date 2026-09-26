@@ -467,7 +467,7 @@ class PyVistaWasmView(vtklocal.LocalView, _BaseView):  # type: ignore[misc]
         self.update_throttle()
 
     def _export_screenshot(self, filename):
-        ext = Path(filename).suffix
+        ext = Path(filename).suffix.removeprefix('.')
         return self.download_screenshot(filename, f'image/{ext}')
 
     # -----------------------------------------------------------
