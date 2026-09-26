@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 
 import pytest
 import pyvista as pv
@@ -15,7 +16,6 @@ from trame_pyvista.apps import create_application
 from trame_pyvista.jupyter import elegantly_launch
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
-from trame_pyvista.vue3_widgets import PlotterState
 from trame_pyvista.vue3_widgets import get_plotter_state
 from trame_pyvista.widgets import PyVistaRCAView
 from trame_pyvista.widgets import PyVistaWasmView
@@ -23,6 +23,13 @@ from trame_pyvista.widgets import get_server
 
 pytestmark = pytest.mark.skipif(
     not widgets.IS_WASM_SUPPORTED, reason='VTK.wasm views need VTK >= 9.7'
+)
+
+needs_zipfile_mkdir = pytest.mark.skipif(
+    sys.version_info < (3, 11), reason='trame-vtklocal exports call ZipFile.mkdir (3.11+)'
+)
+ignore_tar_filter_warning = pytest.mark.filterwarnings(
+    r'ignore:Python 3\.14 will, by default, filter extracted tar archives:DeprecationWarning'
 )
 
 
@@ -82,8 +89,10 @@ def test_component_app(plotter):
     assert app.plotter is plotter
 
 
-def test_simple_viewer_switches_rendering_mode(viewer):
+def test_simple_viewer_switches_rendering_mode(viewer, monkeypatch):
     state = viewer.controls._state
+    updates = []
+    monkeypatch.setattr(viewer.view_wasm, 'update', lambda **kwargs: updates.append(kwargs))
     assert viewer.state.pyvista_rendering_mode == 'local'
     assert viewer.active_view is viewer.view_wasm
     assert not state.is_remote
@@ -97,6 +106,7 @@ def test_simple_viewer_switches_rendering_mode(viewer):
     assert viewer.state.pyvista_rendering_mode == 'local'
     assert viewer.active_view is viewer.view_wasm
     assert not state.is_remote
+    assert updates == [{'push_camera': True}]
 
     _run(viewer._toggle_rendering_mode)
     assert viewer.active_view is viewer.view_rca
@@ -174,15 +184,23 @@ def test_plotter_state_defaults(plotter, vue3_server):
     assert not state.show_orientation_axis
 
 
-def test_plotter_state_tracks_widgets_when_supported(plotter, vue3_server, monkeypatch):
-    tracked = []
-    monkeypatch.setattr(
-        type(plotter.iren), 'SetTrackInteractorObserverInstances', tracked.append, raising=False
-    )
-    state = PlotterState(vue3_server, plotter=plotter)
-    state.update_from_plotter()
-    assert tracked == [1]
+def test_plotter_state_tracks_widgets(plotter, vue3_server):
+    state = get_plotter_state(plotter, vue3_server)
+    assert plotter.iren.interactor.GetTrackInteractorObserverInstances()
     assert not state.need_register_widgets
+
+
+def test_plotter_state_registers_widgets_without_tracking(viewer, plotter, monkeypatch):
+    state = viewer.controls._state
+    with monkeypatch.context() as m:
+        m.setattr(plotter, 'iren', None)
+        state.update_from_plotter()
+    assert state.need_register_widgets
+
+    registered = []
+    monkeypatch.setattr(viewer.view_wasm, 'register_vtk_object', registered.append)
+    state.show_orientation_axis = True
+    assert registered == [plotter.renderer.axes_widget]
 
 
 def test_plotter_state_drives_plotter(viewer, plotter, monkeypatch):
@@ -302,12 +320,17 @@ def test_controls_without_plotter(viewer, plotter, monkeypatch):
     assert plotter.camera_position == before
 
 
-def test_controls_downloads(viewer):
+@needs_zipfile_mkdir
+@ignore_tar_filter_warning
+def test_controls_download_scene(viewer):
     controls = viewer.controls
     assert controls.download_scene()[:2] == b'PK'
     assert b'<html' in controls.download_view3d()[:1000].lower()
+
+
+def test_controls_download_screenshot(viewer):
     _run(viewer.use_remote_rendering)
-    assert controls.download_screenshot()[:8] == b'\x89PNG\r\n\x1a\n'
+    assert viewer.controls.download_screenshot()[:8] == b'\x89PNG\r\n\x1a\n'
 
 
 def test_wasm_view_requires_vtk_97(plotter, vue3_server, monkeypatch):
@@ -346,7 +369,7 @@ def test_wasm_view(plotter, vue3_server, monkeypatch):
     screenshots = []
     monkeypatch.setattr(view, 'download_screenshot', lambda *args: screenshots.append(args))
     view._export_screenshot('shot.png')
-    assert screenshots == [('shot.png', 'image/.png')]
+    assert screenshots == [('shot.png', 'image/png')]
 
 
 def test_wasm_view_syncs_camera_from_client(plotter, vue3_server, monkeypatch):
@@ -357,6 +380,8 @@ def test_wasm_view_syncs_camera_from_client(plotter, vue3_server, monkeypatch):
     assert states == [{'Id': 1}, {'Id': 2}]
 
 
+@needs_zipfile_mkdir
+@ignore_tar_filter_warning
 def test_wasm_view_exports(plotter, vue3_server):
     view = _run(lambda: PyVistaWasmView(plotter, trame_server=vue3_server))
     assert view._export_data()[:2] == b'PK'
@@ -394,6 +419,7 @@ def test_axis_visibility_syncs_wasm_view_widgets(plotter, vue3_server, monkeypat
     assert registered == [plotter.renderer.axes_widget]
 
 
+@needs_zipfile_mkdir
 def test_component_export_wazex(plotter, tmp_path):
     plotter.show_axes()
     assert plotter.trame.export_wazex(None)[:2] == b'PK'
@@ -401,6 +427,8 @@ def test_component_export_wazex(plotter, tmp_path):
     assert path.read_bytes()[:2] == b'PK'
 
 
+@needs_zipfile_mkdir
+@ignore_tar_filter_warning
 def test_component_export_wasm_html(plotter, tmp_path):
     assert b'<html' in plotter.trame.export_wasm_html(None)[:1000].lower()
     path = plotter.trame.export_wasm_html(tmp_path / 'scene.html', rendering='webgpu')
