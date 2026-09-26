@@ -127,15 +127,6 @@ class PlotterState(dataclass.StateDataModel):
             ren.axes_widget is not None for ren in self.plotter.renderers
         )
 
-        # remove/add widgets to make sure they are tracked
-        if self.show_orientation_axis:
-            self._update_orientation_axis(False)
-            self._update_orientation_axis(True)
-
-        if self.show_axis_grid:
-            self._update_axis_grid(False)
-            self._update_axis_grid(True)
-
         self.skip_render = False
 
     def render(self) -> None:
