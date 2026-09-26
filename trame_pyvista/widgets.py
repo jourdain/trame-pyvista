@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC
 from abc import abstractmethod
 import io
+import mimetypes
 from pathlib import Path
 import sys
 import tempfile
@@ -467,8 +468,9 @@ class PyVistaWasmView(vtklocal.LocalView, _BaseView):  # type: ignore[misc]
         self.update_throttle()
 
     def _export_screenshot(self, filename):
-        ext = Path(filename).suffix.removeprefix('.')
-        return self.download_screenshot(filename, f'image/{ext}')
+        """Make the web client download a screenshot in the format ``filename`` implies."""
+        mime, _ = mimetypes.guess_type(filename)
+        return self.download_screenshot(filename, mime or 'image/png')
 
     # -----------------------------------------------------------
     # Legacy API for compatibility - do not use in your code

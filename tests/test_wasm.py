@@ -381,10 +381,22 @@ def test_wasm_view(plotter, vue3_server, monkeypatch):
     view.render()
     assert renders == [1, 1]
 
+
+@pytest.mark.parametrize(
+    ('filename', 'mime'),
+    [
+        ('shot.png', 'image/png'),
+        ('shot.jpg', 'image/jpeg'),
+        ('shot.jpeg', 'image/jpeg'),
+        ('shot', 'image/png'),
+    ],
+)
+def test_wasm_view_screenshot_format(plotter, vue3_server, filename, mime, monkeypatch):
+    view = _run(lambda: PyVistaWasmView(plotter, trame_server=vue3_server))
     screenshots = []
     monkeypatch.setattr(view, 'download_screenshot', lambda *args: screenshots.append(args))
-    view._export_screenshot('shot.png')
-    assert screenshots == [('shot.png', 'image/png')]
+    view._export_screenshot(filename)
+    assert screenshots == [(filename, mime)]
 
 
 def test_wasm_view_syncs_camera_from_client(plotter, vue3_server, monkeypatch):
