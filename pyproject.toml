@@ -59,7 +59,7 @@ test = [
   'ipywidgets',
   'nest-asyncio2',
   'numpy<2.5', # noisy shape deprecations until VTK 9.7
-  'pytest-cov>=5.0',
+  'pytest-cov>=7.0',
   'pytest>=8.0',
   'trame-pyvista[sphinx]',
 ]
@@ -185,6 +185,10 @@ testpaths = ['tests']
 
 [tool.coverage.run]
 branch = true
+omit = ['trame_pyvista/_version.py']
+patch = ['subprocess']
+relative_files = true
+sigterm = true
 source = ['trame_pyvista']
 
 [tool.coverage.report]
