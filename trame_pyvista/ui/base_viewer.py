@@ -83,6 +83,7 @@ class BaseViewer:
             'trame',
             'client',
             'server',
+            'wasm',
         ]
         server.state[self.SHOW_UI] = True
         server.state[self.GRID] = False
@@ -278,6 +279,8 @@ class BaseViewer:
             # Class lookup skips the trame-client element __getattr__
             if callable(getattr(type(view), 'set_widgets', None)):
                 view.set_widgets(widgets)
+            elif callable(getattr(type(view), '_set_widgets', None)):
+                view._set_widgets(widgets)
         # set_widgets pushes the geometry; update_image refreshes server-rendered images
         self.update_image()
 
