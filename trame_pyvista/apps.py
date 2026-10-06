@@ -83,7 +83,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
 
     """
 
-    def __init__(self, plotter, server=None, mode='local'):
+    def __init__(self, plotter, server=None, mode='local', theme='light'):
         widgets._BaseView.__init__(self, plotter)
         TrameApp.__init__(self, server)
         self.server.enable_module(module)
@@ -98,7 +98,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
             warnings.warn(widgets.UPDATE_VTK_FOR_WASM, stacklevel=2)
 
         # Define UI
-        with VAppLayout(self.server, full_height=True, height='100%') as self.ui:
+        with VAppLayout(self.server, full_height=True, height='100%', theme=theme) as self.ui:
             self.ui.iframe_attrs['class'] = 'trame-iframe'
 
             with html.Div(classes='pyvista-client-server'):

@@ -12,8 +12,9 @@ pv.OFF_SCREEN = True
 mesh = examples.load_random_hills()
 
 pl = pv.Plotter()
+# pl.set_background("#333333")
 pl.add_mesh(mesh)
 
 # Create viewer application and start it
-app = SimpleViewer(pl)
+app = SimpleViewer(pl, theme='light')  # theme can be set to 'light' or 'dark'
 app.server.start()
