@@ -12,7 +12,6 @@ pv.OFF_SCREEN = True
 mesh = examples.load_random_hills()
 
 pl = pv.Plotter()
-# pl.set_background("#333333")
 pl.add_mesh(mesh)
 
 # Create viewer application and start it
