@@ -252,7 +252,7 @@ class PyVistaPlotterControls(dc.Provider):
     classes : str, optional
         CSS classes of the toolbar card.
 
-    variant : str, default: 'plain'
+    variant : str, default: 'flat'
         Vuetify variant of the toolbar card.
 
     **kwargs : dict, optional

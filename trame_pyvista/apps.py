@@ -91,7 +91,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
     vuetify_config : dict, default: None
         Configuration structure to provide to vuetify for its initialization.
         When you want to use it to define your own theme, you should provide
-        like the following (see
+        a structure like the following (see
         https://v3.vuetifyjs.com/en/features/theme/#custom-themes for the
         full list of colors and variables):
 
