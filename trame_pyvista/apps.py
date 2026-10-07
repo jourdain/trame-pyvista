@@ -81,66 +81,46 @@ class SimpleViewer(TrameApp, widgets._BaseView):
     mode : str, default: 'local'
         Initial rendering mode, either ``'local'`` or ``'remote'``.
 
-    theme: str, default: 'light'
+    theme : str, default: 'light'
         Theme value passed to vuetify for driving the color set of toolbar,
         toggle and tooltips.
         The two available values by default are ``'light'`` and ``'dark'``,
         but other values can be provided when a provided ``vuetify_config``
         defined them.
 
-    vuetify_config: dict, default: None
+    vuetify_config : dict, default: None
         Configuration structure to provide to vuetify for its initialization.
         When you want to use it to define your own theme, you should provide
-        a structure as follow.
+        like the following (see
+        https://v3.vuetifyjs.com/en/features/theme/#custom-themes for the
+        full list of colors and variables):
 
-        (see https://v3.vuetifyjs.com/en/features/theme/#custom-themes)
+        .. code-block:: python
 
-        ``
-        {
-            'theme': {
-                'defaultTheme': 'pyvista',
-                'themes': {
-                    'pyvista': {
-                        'dark': False,
-                        'colors': {
-                            'background': '#FFFFFF',
-                            'surface': '#FFFFFF',
-                            'surface-bright': '#FFFFFF',
-                            'surface-light': '#EEEEEE',
-                            'surface-variant': '#424242',
-                            'on-surface-variant': '#EEEEEE',
-                            'primary': '#1867C0',
-                            'primary-darken-1': '#1F5592',
-                            'secondary': '#48A9A6',
-                            'secondary-darken-1': '#018786',
-                            'error': '#B00020',
-                            'info': '#2196F3',
-                            'success': '#4CAF50',
-                            'warning': '#FB8C00',
+            {
+                'theme': {
+                    'defaultTheme': 'pyvista',
+                    'themes': {
+                        'pyvista': {
+                            'dark': False,
+                            'colors': {
+                                'background': '#FFFFFF',
+                                'surface': '#FFFFFF',
+                                'primary': '#1867C0',
+                                'secondary': '#48A9A6',
+                                'error': '#B00020',
+                            },
+                            'variables': {
+                                'border-color': '#000000',
+                                'border-opacity': 0.12,
+                                'hover-opacity': 0.04,
+                            },
                         },
-                        'variables': {
-                            'border-color': '#000000',
-                            'border-opacity': 0.12,
-                            'high-emphasis-opacity': 0.87,
-                            'medium-emphasis-opacity': 0.60,
-                            'disabled-opacity': 0.38,
-                            'idle-opacity': 0.04,
-                            'hover-opacity': 0.04,
-                            'focus-opacity': 0.12,
-                            'selected-opacity': 0.08,
-                            'activated-opacity': 0.12,
-                            'pressed-opacity': 0.12,
-                            'dragged-opacity': 0.08,
-                            'theme-kbd': '#212529',
-                            'theme-on-kbd': '#FFFFFF',
-                            'theme-code': '#F5F5F5',
-                            'theme-on-code': '#000000',
-                        }
                     },
                 },
-            },
-        }
-        ``
+            }
+
+        Then pass ``theme='pyvista'`` to select it.
 
     """
 
